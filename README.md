@@ -23,7 +23,7 @@ TrustKYC is a TanStack Start and React frontend for a privacy-focused identity v
    npm run dev
    ```
 
-5. Open the local URL printed by Vite (usually `http://localhost:5173`) in your browser. Use a synthetic PNG or JPG for the demo flow. A wallet browser extension is optional; without one, the UI creates a demo wallet address.
+5. Open the local URL printed by Vite (usually `http://localhost:5173`) in your browser. Use MetaMask on Sepolia and a synthetic PNG or JPG for the demo flow.
 
 6. To create a production build, run:
 
