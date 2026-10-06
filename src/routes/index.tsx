@@ -46,7 +46,7 @@ function Index() {
   const [preview, setPreview] = useState<string | null>(null);
   const [checks, setChecks] = useState<Record<CheckKey, CheckState> | null>(null);
   const [result, setResult] = useState<VerifyResponse | null>(null);
-  const [simulateFail, setSimulateFail] = useState(false);
+  const [serviceError, setServiceError] = useState<string | null>(null);
   const [tx, setTx] = useState<{ phase: "idle" | "submitting" | "submitted" | "confirmed"; hash?: string; receipt?: TxReceipt }>({ phase: "idle" });
   const [records, setRecords] = useState<Rec[]>([]);
   const [revoked, setRevoked] = useState(false);
@@ -62,7 +62,10 @@ function Index() {
 
   const onConnect = async () => {
     setConnecting(true);
-    try { setWallet((await connectWallet()).address); } finally { setConnecting(false); }
+    setServiceError(null);
+    try { setWallet((await connectWallet()).address); }
+    catch (error) { setServiceError(error instanceof Error ? error.message : "Wallet connection failed."); }
+    finally { setConnecting(false); }
   };
 
   const pickFile = (f: File | null) => {
@@ -74,30 +77,40 @@ function Index() {
 
   const runCheck = async () => {
     if (!file) return;
+    setServiceError(null);
     setResult(null);
     const init = Object.fromEntries(CHECKS.map((c) => [c.key, "pending"])) as Record<CheckKey, CheckState>;
     setChecks(init);
-    const res = await verifyDocument(file, { simulateFail });
-    for (const c of res.checks) {
-      setChecks((s) => s && { ...s, [c.key]: "checking" });
-      await new Promise((r) => setTimeout(r, 750));
-      setChecks((s) => s && { ...s, [c.key]: c.passed ? "passed" : "review" });
+    try {
+      const res = await verifyDocument(file, wallet!);
+      for (const c of res.checks) {
+        setChecks((s) => s && { ...s, [c.key]: "checking" });
+        await new Promise((r) => setTimeout(r, 350));
+        setChecks((s) => s && { ...s, [c.key]: c.passed ? "passed" : "review" });
+      }
+      setResult(res);
+    } catch (error) {
+      setChecks(null);
+      setServiceError(error instanceof Error ? error.message : "Document analysis failed.");
     }
-    await new Promise((r) => setTimeout(r, 300));
-    setResult(res);
   };
 
   const storeOnChain = async () => {
     if (!wallet || !result) return;
+    setServiceError(null);
     setTx({ phase: "submitting" });
-    const receipt = await storeKycResult(
-      { wallet, documentHash: result.documentHash, approved: result.approved },
-      (hash) => setTx({ phase: "submitted", hash }),
-    );
-    setTx({ phase: "confirmed", hash: receipt.txHash, receipt });
-    const exp = new Date(); exp.setFullYear(exp.getFullYear() + 1);
-    setRecords((r) => [{ status: result.approved ? "verified" : "review", date: receipt.timestamp, hash: result.documentHash, tx: receipt.txHash, block: receipt.blockNumber, expiry: exp.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) }, ...r]);
-    setRevoked(false);
+    try {
+      const receipt = await storeKycResult(
+        { wallet, documentHash: result.documentHash, approved: result.approved, attestation: result.attestation },
+        (hash) => setTx({ phase: "submitted", hash }),
+      );
+      setTx({ phase: "confirmed", hash: receipt.txHash, receipt });
+      setRecords((r) => [{ status: "verified", date: receipt.timestamp, hash: result.documentHash, tx: receipt.txHash, block: receipt.blockNumber, expiry: "See contract" }, ...r]);
+      setRevoked(false);
+    } catch (error) {
+      setTx({ phase: "idle" });
+      setServiceError(error instanceof Error ? error.message : "Contract transaction failed.");
+    }
   };
 
   const localStatus: KycStatus = revoked ? "revoked" : records[0]?.status === "verified" ? "verified" : "not_verified";
@@ -172,10 +185,6 @@ function Index() {
               {file && (
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button className="btn-primary" onClick={() => { focusSection("ai"); runCheck(); }} disabled={scanning}>{scanning ? <><Spinner /> Analyzing…</> : "Run AI KYC check"}</button>
-                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                    <input type="checkbox" checked={simulateFail} onChange={(e) => setSimulateFail(e.target.checked)} className="accent-primary" />
-                    Demo: simulate a failed check
-                  </label>
                 </div>
               )}
             </Card>
@@ -195,7 +204,7 @@ function Index() {
                   {CHECKS.map((c) => <CheckRow key={c.key} label={c.label} state={checks[c.key]} />)}
                 </ul>
               </Card>
-              {result ? <ResultCard result={result} /> : <ScanVisual preview={preview} done={doneChecks} />}
+              {result ? <ResultCard result={result} /> : serviceError ? <p role="alert" className="rounded-2xl border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive">{serviceError}</p> : <ScanVisual preview={preview} done={doneChecks} />}
             </div>
           ) : (
             <Card n="03" title="AI verification" locked>
@@ -216,10 +225,11 @@ function Index() {
                 `Wallet address ${wallet ? short(wallet) : ""}`, "Timestamp"]} />
             </div>
             <div className="mt-6 flex flex-wrap items-center gap-4">
-              <button className={`btn-primary ${tx.phase === "confirmed" ? "btn-success-glow" : ""}`} onClick={storeOnChain} disabled={!result || tx.phase === "submitting" || tx.phase === "submitted"}>
+              <button className={`btn-primary ${tx.phase === "confirmed" ? "btn-success-glow" : ""}`} onClick={storeOnChain} disabled={!result?.approved || !result.attestation || tx.phase === "submitting" || tx.phase === "submitted"}>
                 {tx.phase === "submitting" || tx.phase === "submitted" ? <><Spinner /> Recording…</> : "Store KYC result on-chain"}
               </button>
               {tx.phase !== "idle" && <TxTimeline tx={tx} />}
+              {serviceError && <p role="alert" className="basis-full text-sm text-destructive">{serviceError}</p>}
             </div>
           </Card>
         </Scene>
@@ -245,8 +255,8 @@ function Index() {
               disabled={!file} confirm="This removes the document preview and file from this browser. Your on-chain fingerprint is unaffected."
               onConfirm={async () => pickFile(null)} />
             <PrivacyAction title="Revoke partner access" desc="Stop an approved partner from using your KYC authorization." label={revoked ? "Access revoked" : "Revoke access"}
-              disabled={!wallet || revoked || records.length === 0} confirm="Partner apps will see your status as Revoked until you re-authorize."
-              onConfirm={async () => { await revokePartnerAccess(wallet!, "demo-partner"); setRevoked(true); }} />
+              disabled={!wallet || revoked || records.length === 0 || !(import.meta.env["VITE_TRUSTKYC_PARTNER_ADDRESS"] as string | undefined)} confirm="This submits a Sepolia transaction to revoke the configured partner wallet."
+              onConfirm={async () => { await revokePartnerAccess(wallet!, import.meta.env["VITE_TRUSTKYC_PARTNER_ADDRESS"] as string); setRevoked(true); }} />
           </div>
         </Scene>
 
@@ -503,6 +513,7 @@ function TxTimeline({ tx }: { tx: { phase: string; hash?: string; receipt?: TxRe
 function PartnerCard({ wallet, status, active }: { wallet: string | null; status: KycStatus; active: boolean }) {
   const [res, setRes] = useState<KycStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const label: Record<KycStatus, [string, string]> = {
     verified: ["Verified", "text-success bg-success/10"], not_verified: ["Not verified", "text-muted-foreground bg-muted"],
     expired: ["Expired", "text-warning bg-warning/10"], revoked: ["Revoked", "text-destructive bg-destructive/10"],
@@ -523,11 +534,12 @@ function PartnerCard({ wallet, status, active }: { wallet: string | null; status
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Partner view · demo-partner.app</p>
           <p className="mt-2 font-mono text-sm">{wallet ? short(wallet) : "No wallet"}</p>
           <div className="mt-4 flex items-center gap-3">
-            <button className="btn-primary" disabled={!wallet || loading} onClick={async () => { setLoading(true); setRes(await getKycStatus(wallet!, status)); setLoading(false); }}>
+            <button className="btn-primary" disabled={!wallet || loading} onClick={async () => { setLoading(true); setError(null); try { setRes(await getKycStatus(wallet!, status)); } catch (e) { setError(e instanceof Error ? e.message : "Status lookup failed."); } finally { setLoading(false); } }}>
               {loading ? <><Spinner /> Checking…</> : "Check KYC status"}
             </button>
             {res && <span className={`animate-pop rounded-full px-3 py-1 text-sm font-semibold ${label[res][1]}`}>{label[res][0]}</span>}
           </div>
+          {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
           <p className="mt-3 text-xs text-muted-foreground">Partners see status only — never your name, ID number or document.</p>
         </div>
       </div>

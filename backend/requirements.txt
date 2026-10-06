@@ -1,0 +1,6 @@
+Flask>=3.0
+web3>=6.0
+eth-account>=0.11
+Pillow>=10.0
+pytesseract>=0.3.10
+python-dotenv>=1.0

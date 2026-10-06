@@ -19,6 +19,9 @@ dist-ssr
 .env.*
 !.env.example
 *.local
+.venv/
+__pycache__/
+*.py[cod]
 
 # Wrangler / Cloudflare
 .wrangler/

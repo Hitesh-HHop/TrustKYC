@@ -31,14 +31,22 @@ TrustKYC is a TanStack Start and React frontend for a privacy-focused identity v
    npm run build
    ```
 
-## What is included
+## TrustKYC API integration
 
-- The first ZIP is the base TrustKYC frontend project. It does not contain a standalone backend service.
-- The second ZIP supplies the cinematic frontend experience, now merged into `src/routes/index.tsx` and `src/styles.css`, with its components in `src/components/cinematic/`.
-- `src/lib/kyc-service.ts` currently provides demo implementations for document checks, status lookup, partner access revocation, and blockchain recording. It does not call an AI service, persist records, or submit a real smart-contract transaction.
-- `VITE_TRUSTKYC_API` is reserved for a future API connection. Configure it in a `.env.local` file only after implementing a compatible backend; the current demo functions do not make API requests.
+The React frontend calls the Flask API in `backend/` for wallet-bound synthetic-document analysis. A passing result includes a short-lived backend attestation; MetaMask submits that attestation to the Sepolia `TrustKYC` contract. The frontend never sends a transaction from a server key.
 
-To connect a real backend, implement the API and contract integrations in `src/lib/kyc-service.ts` (or replace that adapter), then configure the API URL through `VITE_TRUSTKYC_API`. Do not use real identity documents with the current demo verifier.
+This is hackathon-demo quality and supports synthetic documents only. Do not upload real identity documents.
+
+### Start locally
+
+1. Copy `.env.example` to `.env` in this project. These `VITE_*` values are public configuration; do not put private keys there.
+2. In `backend/`, copy `.env.example` to `.env`, set a fresh `FLASK_SECRET_KEY`, `SEPOLIA_RPC_URL`, and `VERIFIER_PRIVATE_KEY`, then install `requirements.txt` in a Python virtual environment. Never commit `backend/.env`.
+3. Start Flask from the project root with `python -m backend.app`.
+4. Start the frontend with `npm run dev`.
+
+Flask permits the standard local Vite origins. For a deployed frontend, add its exact origin to `CORS_ORIGINS` in `backend/.env`. The configured RPC, contract, verifier key, and wallet network must all point to Sepolia; `/health` reports whether the backend configuration is ready.
+
+The app needs MetaMask on Sepolia for analysis and contract calls. Only PASS results can be registered. Partner status reads require `VITE_TRUSTKYC_CONTRACT_ADDRESS`; revoking access additionally requires `VITE_TRUSTKYC_PARTNER_ADDRESS` to name the approved partner wallet.
 
 ## Available commands
 
