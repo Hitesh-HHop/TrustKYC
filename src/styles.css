@@ -262,3 +262,17 @@
   .card-fx { transform: none !important; }
   .scene-inner { opacity: 1 !important; transform: none !important; filter: none !important; }
 }
+
+/* First visit onboarding */
+.tour-scrim { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1rem;
+  background: oklch(0.08 0.025 285 / 0.72); backdrop-filter: blur(5px); }
+.tour-card { position: relative; width: min(100%, 28rem); padding: 1.5rem; border-radius: 1.5rem; animation: pop .35s cubic-bezier(.2,.8,.2,1) both; }
+.tour-close { position: absolute; top: .75rem; right: .9rem; width: 2rem; height: 2rem; border-radius: 999px; color: var(--muted-foreground); font-size: 1.5rem; line-height: 1; }
+.tour-close:hover { background: oklch(1 0 0 / .08); color: var(--foreground); }
+.tour-guide { display: flex; align-items: center; gap: .65rem; height: 3.3rem; margin: -.25rem 0 .75rem; color: var(--pink); font-size: .7rem; font-weight: 700; letter-spacing: .14em; }
+.tour-guide img { width: 3.2rem; height: 3.2rem; object-fit: cover; object-position: center 17%; border-radius: 999px; border: 1px solid oklch(0.74 0.17 345 / .45); background: oklch(0.3 0.06 290); }
+.tour-progress { display: flex; gap: .35rem; margin: 0 0 1rem; }
+.tour-progress span { height: .22rem; flex: 1; border-radius: 999px; background: oklch(1 0 0 / .12); }
+.tour-progress span.is-active { background: var(--gradient-brand); box-shadow: 0 0 12px oklch(0.78 0.15 295 / .35); }
+.tour-highlight { outline: 2px solid oklch(0.78 0.15 295 / .8); outline-offset: 5px; border-radius: 1rem; transition: outline-color .2s; }
+@media (max-width: 480px) { .tour-card { padding: 1.2rem; } }

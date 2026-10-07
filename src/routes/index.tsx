@@ -51,6 +51,7 @@ function Index() {
   const [records, setRecords] = useState<Rec[]>([]);
   const [revoked, setRevoked] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [tourStep, setTourStep] = useState<number | null>(null);
 
   const scanning = !!checks && !result;
   const mood: Mood = !wallet ? "idle" : tx.phase === "confirmed" ? "done" : tx.phase !== "idle" ? "chain"
@@ -59,6 +60,24 @@ function Index() {
   const step = !wallet ? 0 : !file ? 1 : !result ? 2 : tx.phase !== "confirmed" ? 3 : 4;
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+
+  useEffect(() => {
+    if (window.localStorage.getItem("trustkyc-tour-complete") !== "true") setTourStep(0);
+  }, []);
+
+  const tourTargets = ["wallet", "upload", "ai", "chain", "reuse"];
+  useEffect(() => {
+    if (tourStep === null) return;
+    const section = document.getElementById(tourTargets[tourStep]);
+    section?.classList.add("tour-highlight");
+    section?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return () => section?.classList.remove("tour-highlight");
+  }, [tourStep]);
+
+  const finishTour = () => {
+    window.localStorage.setItem("trustkyc-tour-complete", "true");
+    setTourStep(null);
+  };
 
   const onConnect = async () => {
     setConnecting(true);
@@ -125,7 +144,7 @@ function Index() {
       <Backdrop />
       <CinematicProvider onActive={setActive} />
       <SectionRail active={active} />
-      <Nav wallet={wallet} connecting={connecting} onConnect={onConnect} menu={menu} setMenu={setMenu} />
+      <Nav wallet={wallet} connecting={connecting} onConnect={onConnect} onReplay={() => setTourStep(0)} menu={menu} setMenu={setMenu} />
 
       <main className="relative z-10 mx-auto max-w-6xl px-4 pb-24 sm:px-6 md:pr-24">
         {/* 01 Hero */}
@@ -274,11 +293,50 @@ function Index() {
           </footer>
         </Scene>
       </main>
+      {tourStep !== null && <OnboardingTour step={tourStep} onNext={() => tourStep === 4 ? finishTour() : setTourStep(tourStep + 1)} onBack={() => setTourStep(Math.max(0, tourStep - 1))} onSkip={finishTour} />}
     </div>
   );
 }
 
 /* ---------- pieces ---------- */
+
+const TOUR_STEPS = [
+  { title: "Connect your wallet", copy: "Link your wallet to get started. It’s your secure identity anchor." },
+  { title: "Add your document", copy: "Upload a supported identity document to begin your private verification." },
+  { title: "AI checks it", copy: "Our checks look for valid, supported documents and flag anything that needs another look." },
+  { title: "Your status goes on-chain", copy: "The blockchain records your verification status and a cryptographic fingerprint. Your document stays off-chain." },
+  { title: "Share when you need to", copy: "Let a partner confirm your verified status without sharing your identity document." },
+];
+
+function OnboardingTour({ step, onNext, onBack, onSkip }: { step: number; onNext: () => void; onBack: () => void; onSkip: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onSkip(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onSkip]);
+
+  return createPortal(
+    <div className="tour-scrim" role="presentation">
+      <section className="tour-card glass" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-copy">
+        <button type="button" className="tour-close" onClick={onSkip} aria-label="Skip tour">×</button>
+        <div className="tour-guide"><img src={guardian} alt="" /><span>ARIA</span></div>
+        <div className="tour-progress" aria-label={`Step ${step + 1} of 5`}>
+          {TOUR_STEPS.map((_, index) => <span key={index} className={index <= step ? "is-active" : ""} />)}
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-[.18em] text-cyan">A quick tour · {step + 1} of 5</p>
+        <h2 id="tour-title" className="mt-2 text-2xl font-bold">{TOUR_STEPS[step].title}</h2>
+        <p id="tour-copy" className="mt-2 text-sm leading-relaxed text-muted-foreground">{TOUR_STEPS[step].copy}</p>
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <button type="button" className="btn-ghost !px-4 !py-2 text-sm" onClick={onSkip}>Skip</button>
+          <div className="flex gap-2">
+            <button type="button" className="btn-ghost !px-4 !py-2 text-sm" onClick={onBack} disabled={step === 0}>Back</button>
+            <button type="button" className="btn-primary !px-5 !py-2 text-sm" onClick={onNext}>{step === 4 ? "Done" : "Next"}</button>
+          </div>
+        </div>
+      </section>
+    </div>, document.body,
+  );
+}
 
 function Backdrop() {
   const dots = Array.from({ length: 8 }, (_, i) => i);
@@ -296,7 +354,7 @@ function Backdrop() {
   );
 }
 
-function Nav({ wallet, connecting, onConnect, menu, setMenu }: { wallet: string | null; connecting: boolean; onConnect: () => void; menu: boolean; setMenu: (b: boolean) => void }) {
+function Nav({ wallet, connecting, onConnect, onReplay, menu, setMenu }: { wallet: string | null; connecting: boolean; onConnect: () => void; onReplay: () => void; menu: boolean; setMenu: (b: boolean) => void }) {
   const links = [["Home", "#home"], ["Verification", "#wallet"], ["Records", "#records"], ["Privacy", "#privacy"]];
   return (
     <header className="sticky top-0 z-40 px-4 pt-4 sm:px-6">
@@ -306,6 +364,7 @@ function Nav({ wallet, connecting, onConnect, menu, setMenu }: { wallet: string 
         </a>
         <div className="hidden gap-1 md:flex">
           {links.map(([l, h]) => <a key={h} href={h} className="rounded-full px-3 py-1.5 text-sm text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground">{l}</a>)}
+          <button type="button" onClick={onReplay} className="rounded-full px-3 py-1.5 text-sm text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground">Tour</button>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={onConnect} disabled={!!wallet || connecting} className={wallet ? "btn-ghost !py-2 font-mono text-sm" : "btn-primary !py-2 text-sm"}>
@@ -319,6 +378,7 @@ function Nav({ wallet, connecting, onConnect, menu, setMenu }: { wallet: string 
       {menu && (
         <div className="glass mx-auto mt-2 max-w-6xl rounded-2xl p-2 animate-in fade-in slide-in-from-top-2 md:hidden">
           {links.map(([l, h]) => <a key={h} href={h} onClick={() => setMenu(false)} className="block rounded-xl px-4 py-3 hover:bg-foreground/5">{l}</a>)}
+          <button type="button" onClick={() => { setMenu(false); onReplay(); }} className="block w-full rounded-xl px-4 py-3 text-left hover:bg-foreground/5">Replay tour</button>
         </div>
       )}
     </header>
@@ -328,7 +388,7 @@ function Nav({ wallet, connecting, onConnect, menu, setMenu }: { wallet: string 
 function Guardian({ mood }: { mood: Mood }) {
   const ring = mood === "pass" || mood === "done" ? "bg-success/30" : mood === "fail" ? "bg-warning/30" : mood === "scanning" || mood === "chain" ? "bg-cyan/30" : "bg-primary/30";
   return (
-    <div className="relative mx-auto w-full max-w-sm">
+    <div className="guardian-aura relative mx-auto w-full max-w-sm">
       <div className={`absolute inset-8 rounded-full blur-3xl transition-colors duration-700 ${ring}`} />
       <img src={guardian} alt="Aria, the TrustKYC guardian assistant" width={816} height={816} className="animate-floaty relative mx-auto w-64 drop-shadow-2xl sm:w-80" />
       <div key={mood} role="status" aria-live="polite" className="glass animate-in fade-in zoom-in-95 absolute -bottom-2 left-1/2 w-max max-w-[90%] -translate-x-1/2 rounded-2xl px-4 py-2.5 text-sm font-medium">
