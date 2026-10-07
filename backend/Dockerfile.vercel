@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PORT=80
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . /app/backend
+RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+
+EXPOSE 80
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-80} --workers 1 --threads 4 --timeout 60 backend.app:app"]

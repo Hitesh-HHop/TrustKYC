@@ -19,7 +19,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from eth_account import Account
+from eth_utils import to_checksum_address
 from flask import Flask, jsonify, request
 from PIL import Image
 
@@ -66,6 +66,7 @@ def _tmp_dir() -> Path:
 
 
 @app.get("/health")
+@app.get("/api/health")
 def health():
     body, status = chain_health()
     body["service"] = "trustkyc-backend"
@@ -73,6 +74,7 @@ def health():
 
 
 @app.post("/challenge")
+@app.post("/api/challenge")
 def challenge():
     data = request.get_json(silent=True) or {}
     applicant = (data.get("applicant") or "").strip()
@@ -85,13 +87,14 @@ def challenge():
 
 
 @app.post("/analyze")
+@app.post("/api/analyze")
 def analyze():
     applicant = (request.form.get("applicant") or "").strip()
     wallet_sig = (request.form.get("walletSignature") or "").strip()
     if not applicant or not wallet_sig:
         return jsonify({"error": "applicant and walletSignature are required"}), 400
     try:
-        Account.to_checksum_address(applicant)
+        to_checksum_address(applicant)
     except Exception:
         return jsonify({"error": "invalid applicant address"}), 400
 

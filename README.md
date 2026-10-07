@@ -44,9 +44,36 @@ This is hackathon-demo quality and supports synthetic documents only. Do not upl
 3. Start Flask from the project root with `python -m backend.app`.
 4. Start the frontend with `npm run dev`.
 
-Flask permits the standard local Vite origins. For a deployed frontend, add its exact origin to `CORS_ORIGINS` in `backend/.env`. The configured RPC, contract, verifier key, and wallet network must all point to Sepolia; `/health` reports whether the backend configuration is ready.
+Local Vite-to-Flask calls use the configured local origin. The Vercel frontend and backend share an origin and use `/api`, so production requests do not need CORS. The configured RPC, contract, verifier key, and wallet network must all point to Sepolia; `/health` reports whether the backend configuration is ready.
 
 The app needs MetaMask on Sepolia for analysis and contract calls. Only PASS results can be registered. Partner status reads require `VITE_TRUSTKYC_CONTRACT_ADDRESS`; revoking access additionally requires `VITE_TRUSTKYC_PARTNER_ADDRESS` to name the approved partner wallet.
+
+## Deploy to Vercel (multi-service)
+
+The repository is configured as two services on one Vercel deployment:
+
+- `app` serves the TanStack Start UI at `/`.
+- `backend` serves Flask at `/api/health`, `/api/challenge`, and `/api/analyze`.
+- The backend runs from `backend/Dockerfile.vercel` so the OCR engine is included.
+- The browser calls the same-origin `/api` path; no service binding is needed because there is no server-to-server call.
+
+In the Vercel project, select **Services** as the project framework. Set these environment values for the appropriate service and both Production and Preview environments:
+
+**Backend service only** (sensitive values must not be exposed to the frontend):
+- `SEPOLIA_RPC_URL` — Sepolia RPC endpoint.
+- `VERIFIER_PRIVATE_KEY` — private key for the configured verifier wallet.
+- `FLASK_SECRET_KEY` — a fresh random secret.
+- `CHAIN_ID=11155111`.
+- `TRUSTKYC_CONTRACT_ADDRESS` — deployed Sepolia contract.
+- `EXPECTED_VERIFIER_ADDRESS` — public verifier address configured on-chain.
+
+**Frontend service:**
+- `VITE_TRUSTKYC_CONTRACT_ADDRESS` — deployed Sepolia contract address.
+- `VITE_TRUSTKYC_API=/api` (optional; production defaults to `/api`).
+
+Never paste backend secrets into the frontend service or commit `.env` files. Vercel sends `/api/*` requests to Flask with the `/api` prefix intact, so Flask exposes matching prefixed routes as well as the local unprefixed routes.
+
+**Demo limitation:** wallet challenges are held in process memory and are single-use. Vercel can run multiple backend instances, so a challenge and its analysis request may reach different instances. This is suitable only for a low-traffic demo; use shared expiring storage for challenges before relying on this flow publicly.
 
 ## Available commands
 

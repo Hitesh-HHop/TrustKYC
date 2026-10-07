@@ -6,7 +6,8 @@ export type VerifyResponse = { approved: boolean; documentHash: string; checks: 
 export type KycStatus = "verified" | "not_verified" | "expired" | "revoked";
 export type TxReceipt = { txHash: string; blockNumber: number; network: string; timestamp: number };
 
-export const API_BASE = ((import.meta.env["VITE_TRUSTKYC_API"] as string | undefined) ?? "http://127.0.0.1:5000").replace(/\/$/, "");
+const configuredApiBase = import.meta.env["VITE_TRUSTKYC_API"] as string | undefined;
+export const API_BASE = (configuredApiBase ?? (import.meta.env.DEV ? "http://127.0.0.1:5000" : "/api")).replace(/\/$/, "");
 const SEPOLIA_ID = 11155111;
 const SEPOLIA_HEX = "0xaa36a7";
 const CHECKS: { key: CheckKey; label: string }[] = [

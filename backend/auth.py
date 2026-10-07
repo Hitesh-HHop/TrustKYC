@@ -20,6 +20,7 @@ from typing import Any
 
 from eth_account import Account
 from eth_account.messages import encode_defunct, encode_typed_data
+from eth_utils import to_checksum_address
 
 from . import config
 
@@ -27,7 +28,7 @@ _CHALLENGES: dict[str, dict[str, Any]] = {}
 
 
 def issue_challenge(applicant: str) -> dict[str, Any]:
-    addr = Account.to_checksum_address(applicant)
+    addr = to_checksum_address(applicant)
     nonce = secrets.token_hex(16)
     issued = int(time.time())
     message = (
@@ -47,7 +48,7 @@ def issue_challenge(applicant: str) -> dict[str, Any]:
 
 def verify_challenge(applicant: str, signature: str) -> tuple[bool, str]:
     try:
-        addr = Account.to_checksum_address(applicant)
+        addr = to_checksum_address(applicant)
     except Exception:
         return False, "invalid applicant address"
     rec = _CHALLENGES.get(addr.lower())
@@ -69,14 +70,14 @@ def verify_challenge(applicant: str, signature: str) -> tuple[bool, str]:
 
 def sign_pass_attestation(applicant: str, doc_hash_hex: str) -> dict[str, str]:
     """Sign a PASS attestation. Caller must have already gated on PASS."""
-    addr = Account.to_checksum_address(applicant)
+    addr = to_checksum_address(applicant)
     nonce_hex = "0x" + secrets.token_hex(32)
     expiry = int(time.time()) + config.ATTESTATION_TTL_SECONDS
     domain = {
         "name": config.EIP712_DOMAIN_NAME,
         "version": config.EIP712_DOMAIN_VERSION,
         "chainId": config.EXPECTED_CHAIN_ID,
-        "verifyingContract": Account.to_checksum_address(config.CONTRACT_ADDRESS),
+        "verifyingContract": to_checksum_address(config.CONTRACT_ADDRESS),
     }
     types = {
         "EIP712Domain": [
@@ -109,5 +110,5 @@ def sign_pass_attestation(applicant: str, doc_hash_hex: str) -> dict[str, str]:
         "expiry": str(expiry),
         "signature": "0x" + signed.signature.hex().removeprefix("0x"),
         "chainId": str(config.EXPECTED_CHAIN_ID),
-        "contractAddress": Account.to_checksum_address(config.CONTRACT_ADDRESS),
+        "contractAddress": to_checksum_address(config.CONTRACT_ADDRESS),
     }

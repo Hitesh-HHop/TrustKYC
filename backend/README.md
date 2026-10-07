@@ -35,3 +35,10 @@
   domain `TrustKYC/1/chainId/contract`, type
   `PassAttestation(address applicant,bytes32 docHash,bytes32 nonce,uint256 expiry)`.
 - No frontend, deploy, or contract changes in this phase.
+
+
+## Vercel container runtime
+
+The Vercel Services deployment runs this backend from `Dockerfile.vercel`, which installs Tesseract and the English language data. The container imports `backend.app:app` and binds Gunicorn to Vercel's `PORT`. Flask exposes both local routes (`/health`, `/challenge`, `/analyze`) and same-origin deployment routes (`/api/health`, `/api/challenge`, `/api/analyze`). The Docker context excludes `.env` files.
+
+Wallet challenge state is currently process-local. Serverless instances do not share that memory, so a challenge followed by analysis can fail if Vercel routes the requests to different instances. Use a shared TTL store before production or higher-traffic use.
